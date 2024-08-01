@@ -26,3 +26,10 @@ env_vars.each do |key, value|
     not_if "grep -q '^export #{key}=#{value}' #{profile_file}", :user => user_name
   end
 end
+
+# Reload the profile for the user
+execute 'reload profile' do
+  command "source #{profile_file}"
+  user user_name
+  action :run
+end
