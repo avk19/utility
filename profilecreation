@@ -12,24 +12,30 @@ file profile_file do
   action :create_if_missing
 end
 
-# Add each environment variable to the profile
-env_vars.each do |key, value|
-  ruby_block "Add #{key} to user profile" do
-    block do
-      file = Chef::Util::FileEdit.new(profile_file)
-      # Check if the variable is already present
+# Define a ruby_block to modify the profile file if necessary
+ruby_block 'Add environment variables to user profile' do
+  block do
+    file = Chef::Util::FileEdit.new(profile_file)
+    updated = false
+    env_vars.each do |key, value|
       unless file.search_line(/#{key}=/)
         file.insert_line_if_no_match(/#{key}=/, "export #{key}=#{value}")
-        file.write_file
+        updated = true
       end
     end
-    not_if "grep -q '^export #{key}=#{value}' #{profile_file}", :user => user_name
+    file.write_file if updated
   end
+  not_if do
+    env_vars.all? do |key, value|
+      ::File.readlines(profile_file).grep(/^export #{key}=#{value}$/).any?
+    end
+  end
+  notifies :run, 'execute[reload profile]', :immediately
 end
 
-# Reload the profile for the user
+# Reload the profile for the user, triggered by changes in the ruby_block
 execute 'reload profile' do
   command "source #{profile_file}"
   user user_name
-  action :run
+  action :nothing
 end
