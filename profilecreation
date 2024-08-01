@@ -1,41 +1,43 @@
 # recipes/default.rb
 
-# Get user and environment variables from node attributes
-user_name = node['profile_variable']['user']
-env_vars = node['profile_variable']['env_vars']
-profile_file = "/home/#{user_name}/.bash_profile"
+# Get users and their environment variables from node attributes
+users = node['profile_variable']['users']
 
-# Ensure the profile file exists
-file profile_file do
-  owner user_name
-  mode '0644'
-  action :create_if_missing
-end
+users.each do |user_name, env_vars|
+  profile_file = "/home/#{user_name}/.bash_profile"
 
-# Define a ruby_block to modify the profile file if necessary
-ruby_block 'Add environment variables to user profile' do
-  block do
-    file = Chef::Util::FileEdit.new(profile_file)
-    updated = false
-    env_vars.each do |key, value|
-      unless file.search_line(/#{key}=/)
-        file.insert_line_if_no_match(/#{key}=/, "export #{key}=#{value}")
-        updated = true
+  # Ensure the profile file exists
+  file profile_file do
+    owner user_name
+    mode '0644'
+    action :create_if_missing
+  end
+
+  # Define a ruby_block to modify the profile file if necessary
+  ruby_block "Add environment variables to #{user_name}'s profile" do
+    block do
+      file = Chef::Util::FileEdit.new(profile_file)
+      updated = false
+      env_vars.each do |key, value|
+        unless file.search_line(/#{key}=/)
+          file.insert_line_if_no_match(/#{key}=/, "export #{key}=#{value}")
+          updated = true
+        end
+      end
+      file.write_file if updated
+    end
+    not_if do
+      env_vars.all? do |key, value|
+        ::File.readlines(profile_file).grep(/^export #{key}=#{value}$/).any?
       end
     end
-    file.write_file if updated
+    notifies :run, "execute[reload profile for #{user_name}]", :immediately
   end
-  not_if do
-    env_vars.all? do |key, value|
-      ::File.readlines(profile_file).grep(/^export #{key}=#{value}$/).any?
-    end
-  end
-  notifies :run, 'execute[reload profile]', :immediately
-end
 
-# Reload the profile for the user, triggered by changes in the ruby_block
-execute 'reload profile' do
-  command "source #{profile_file}"
-  user user_name
-  action :nothing
+  # Reload the profile for the user, triggered by changes in the ruby_block
+  execute "reload profile for #{user_name}" do
+    command "source #{profile_file}"
+    user user_name
+    action :nothing
+  end
 end
