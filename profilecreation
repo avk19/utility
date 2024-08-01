@@ -43,9 +43,9 @@ users.each do |user_name, env_vars|
     notifies :run, "execute[reload profile for #{user_name}]", :immediately if ::File.exist?(profile_file)
   end
 
-  # Reload the profile for the user, triggered by changes in the ruby_block
+  # Reload the profile for the user, only if the file exists
   execute "reload profile for #{user_name}" do
-    command "source #{profile_file}"
+    command "if [ -f #{profile_file} ]; then source #{profile_file}; fi"
     user user_name
     action :nothing
   end
