@@ -28,7 +28,7 @@ users.each do |user_name, env_vars|
     end
     not_if do
       env_vars.all? do |key, value|
-        ::File.readlines(profile_file).grep(/^export #{key}=#{value}$/).any?
+        ::File.readlines(profile_file).any? { |line| line.strip == "export #{key}=#{value}" }
       end
     end
     notifies :run, "execute[reload profile for #{user_name}]", :immediately
