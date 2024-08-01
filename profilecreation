@@ -1,19 +1,28 @@
 # recipes/default.rb
 
-# Define the variable, user, and the profile file
-user_name = 'target_user'
-variable_name = 'MY_VARIABLE'
-variable_value = 'my_value'
+# Get user and environment variables from node attributes
+user_name = node['profile_variable']['user']
+env_vars = node['profile_variable']['env_vars']
 profile_file = "/home/#{user_name}/.bash_profile"
 
-ruby_block 'Add environment variable to user profile' do
-  block do
-    file = Chef::Util::FileEdit.new(profile_file)
-    # Check if the variable is already present
-    unless file.search_line(/#{variable_name}=/)
-      file.insert_line_if_no_match(/#{variable_name}=/, "export #{variable_name}=#{variable_value}")
-      file.write_file
+# Ensure the profile file exists
+file profile_file do
+  owner user_name
+  mode '0644'
+  action :create_if_missing
+end
+
+# Add each environment variable to the profile
+env_vars.each do |key, value|
+  ruby_block "Add #{key} to user profile" do
+    block do
+      file = Chef::Util::FileEdit.new(profile_file)
+      # Check if the variable is already present
+      unless file.search_line(/#{key}=/)
+        file.insert_line_if_no_match(/#{key}=/, "export #{key}=#{value}")
+        file.write_file
+      end
     end
+    not_if "grep -q '^export #{key}=#{value}' #{profile_file}", :user => user_name
   end
-  not_if "grep -q '^export #{variable_name}=#{variable_value}' #{profile_file}", :user => user_name
 end
