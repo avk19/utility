@@ -17,28 +17,30 @@ users.each do |user_name, env_vars|
   ruby_block "Add environment variables to #{user_name}'s profile" do
     block do
       file_path = profile_file
-      existing_lines = ::File.readlines(file_path).map(&:strip)
-      
-      new_lines = []
-      env_vars.each do |key, value|
-        new_line = "export #{key}=#{value}"
-        unless existing_lines.any? { |line| line.start_with?("export #{key}=") }
-          new_lines << new_line
+      if ::File.exist?(file_path)
+        existing_lines = ::File.readlines(file_path).map(&:strip)
+
+        new_lines = []
+        env_vars.each do |key, value|
+          new_line = "export #{key}=#{value}"
+          unless existing_lines.any? { |line| line.start_with?("export #{key}=") }
+            new_lines << new_line
+          end
         end
-      end
-      
-      if new_lines.any?
-        ::File.open(file_path, 'a') do |f|
-          new_lines.each { |line| f.puts(line) }
+
+        if new_lines.any?
+          ::File.open(file_path, 'a') do |f|
+            new_lines.each { |line| f.puts(line) }
+          end
         end
       end
     end
     not_if do
       env_vars.all? do |key, value|
-        ::File.readlines(profile_file).grep(/^export #{key}=#{value}$/).any?
+        ::File.exist?(profile_file) && ::File.readlines(profile_file).grep(/^export #{key}=#{value}$/).any?
       end
     end
-    notifies :run, "execute[reload profile for #{user_name}]", :immediately
+    notifies :run, "execute[reload profile for #{user_name}]", :immediately if ::File.exist?(profile_file)
   end
 
   # Reload the profile for the user, triggered by changes in the ruby_block
