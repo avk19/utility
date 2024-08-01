@@ -1,15 +1,20 @@
 {
   "name": "set_env_vars",
-  "description": "Role to set environment variables",
+  "description": "Role to set environment variables for multiple users",
   "run_list": [
     "recipe[profile_variable]"
   ],
   "override_attributes": {
     "profile_variable": {
-      "user": "target_user",
-      "env_vars": {
-        "MY_VARIABLE": "my_value",
-        "ANOTHER_VARIABLE": "another_value"
+      "users": {
+        "user1": {
+          "MY_VARIABLE": "my_value1",
+          "ANOTHER_VARIABLE": "another_value1"
+        },
+        "user2": {
+          "MY_VARIABLE": "my_value2",
+          "ANOTHER_VARIABLE": "another_value2"
+        }
       }
     }
   }
