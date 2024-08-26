@@ -1,14 +1,12 @@
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.ldap.core.LdapTemplate;
-import org.springframework.ldap.query.LdapQuery;
-import org.springframework.ldap.query.LdapQueryBuilder;
+import org.springframework.ldap.filter.EqualsFilter;
 import org.springframework.stereotype.Service;
+import org.springframework.ldap.core.AttributesMapper;
 
-import javax.naming.directory.Attributes;
 import javax.naming.directory.SearchControls;
-import javax.naming.directory.SearchResult;
+import javax.naming.directory.Attributes;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class LdapService {
@@ -17,47 +15,39 @@ public class LdapService {
     private LdapTemplate ldapTemplate;
 
     public List<String> getGroupMembers(String groupName) {
-        String groupDn = "cn=" + groupName + ",ou=groups,dc=example,dc=com";
-        LdapQuery query = LdapQueryBuilder.query()
-                .base(groupDn)
-                .where("objectClass").is("group")
-                .and("cn").is(groupName);
-
-        SearchControls searchControls = new SearchControls();
-        searchControls.setSearchScope(SearchControls.OBJECT_SCOPE);
-        searchControls.setReturningAttributes(new String[]{"member"});
-
-        List<String> memberDNs = ldapTemplate.search(query, searchControls, (Attributes attributes) -> {
-            if (attributes.get("member") != null) {
-                return (String) attributes.get("member").get();
-            }
-            return null;
-        });
-
-        return memberDNs;
+        EqualsFilter filter = new EqualsFilter("cn", groupName);
+        
+        return ldapTemplate.search("", filter.encode(), getGroupMemberAttributesMapper());
     }
 
-    public List<String> getSamAccountNames(List<String> memberDNs) {
-        return memberDNs.stream()
-                .map(memberDn -> {
-                    LdapQuery query = LdapQueryBuilder.query()
-                            .base(memberDn)
-                            .where("objectClass").is("person");
+    private AttributesMapper<String> getGroupMemberAttributesMapper() {
+        return attrs -> {
+            if (attrs != null) {
+                try {
+                    return attrs.get("member").get().toString();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            return null;
+        };
+    }
 
-                    SearchControls searchControls = new SearchControls();
-                    searchControls.setSearchScope(SearchControls.OBJECT_SCOPE);
-                    searchControls.setReturningAttributes(new String[]{"sAMAccountName"});
+    public String getSamAccountName(String memberDn) {
+        EqualsFilter filter = new EqualsFilter("objectClass", "user");
 
-                    List<String> samAccountNames = ldapTemplate.search(query, searchControls, (Attributes attributes) -> {
-                        if (attributes.get("sAMAccountName") != null) {
-                            return (String) attributes.get("sAMAccountName").get();
-                        }
-                        return null;
-                    });
+        List<String> result = ldapTemplate.search(memberDn, filter.encode(), SearchControls.OBJECT_SCOPE, 
+            new String[]{"sAMAccountName"}, (Attributes attrs) -> {
+                if (attrs != null) {
+                    try {
+                        return attrs.get("sAMAccountName").get().toString();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+                return null;
+            });
 
-                    return samAccountNames.isEmpty() ? null : samAccountNames.get(0);
-                })
-                .filter(samAccountName -> samAccountName != null)
-                .collect(Collectors.toList());
+        return result.isEmpty() ? null : result.get(0);
     }
 }
