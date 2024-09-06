@@ -1,0 +1,44 @@
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
+import java.util.List;
+
+public class AutosysCalendarGenerator {
+
+    // Function to get the first Sunday after a given date
+    public static LocalDate getFirstSundayAfter(LocalDate date) {
+        return date.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+    }
+
+    // Function to generate the list of dates every 60 days and first Sundays after those dates
+    public static List<String> generateCalendarDates(int intervals, int numberOfDates) {
+        List<String> dates = new ArrayList<>();
+        LocalDate startDate = LocalDate.now();  // Start from today's date
+
+        for (int i = 0; i < numberOfDates; i++) {
+            // Get the date after i*60 days
+            LocalDate dateAfterInterval = startDate.plusDays(intervals * i);
+            dates.add("60-day interval: " + dateAfterInterval);
+
+            // Get the first Sunday after this date
+            LocalDate firstSunday = getFirstSundayAfter(dateAfterInterval);
+            dates.add("First Sunday after: " + firstSunday);
+        }
+
+        return dates;
+    }
+
+    public static void main(String[] args) {
+        int intervals = 60;  // Number of days between intervals
+        int numberOfDates = 10;  // Number of dates to generate
+
+        // Generate the calendar dates
+        List<String> calendarDates = generateCalendarDates(intervals, numberOfDates);
+
+        // Print the generated dates
+        for (String date : calendarDates) {
+            System.out.println(date);
+        }
+    }
+}
