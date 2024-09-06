@@ -4,14 +4,14 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
 
-public class AutosysCalendarGenerator {
+public class AutosysCalendarGeneratorJava8 {
 
     // Function to get the first Sunday after a given date
     public static LocalDate getFirstSundayAfter(LocalDate date) {
         return date.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
     }
 
-    // Function to generate the list of dates every 60 days and first Sundays after those dates
+    // Function to generate the list of dates every 60 days and the first Sundays after those dates
     public static List<String> generateCalendarDates(int intervals, int numberOfDates) {
         List<String> dates = new ArrayList<>();
         LocalDate startDate = LocalDate.now();  // Start from today's date
@@ -37,8 +37,6 @@ public class AutosysCalendarGenerator {
         List<String> calendarDates = generateCalendarDates(intervals, numberOfDates);
 
         // Print the generated dates
-        for (String date : calendarDates) {
-            System.out.println(date);
-        }
+        calendarDates.forEach(System.out::println);
     }
 }
