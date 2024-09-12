@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# Validate input
+if [ "$#" -ne 1 ]; then
+  echo "Only ON or OFF are valid"
+  exit 1
+fi
+
+input="$1"
+
+if [ "$input" != "ON" ] && [ "$input" != "OFF" ]; then
+  echo "Only ON or OFF are valid"
+  exit 1
+fi
+
+# Call another script to get the output (replace with your actual script)
+other_script_output=$(./other_script.sh)
+
+# Check the conditions based on input and output of the other script
+if [ "$input" == "ON" ] && [ "$other_script_output" -eq 0 ]; then
+  exit 0
+elif [ "$input" == "OFF" ] && [ "$other_script_output" -eq 1 ]; then
+  exit 0
+else
+  # Exit with a non-zero status for invalid conditions
+  exit 1
+fi
