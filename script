@@ -1,27 +1,31 @@
 #!/bin/bash
 
-# Validate input
-if [ "$#" -ne 1 ]; then
-  echo "Only ON or OFF are valid"
-  exit 1
-fi
+# Job name to check
+JOB_NAME="your_job_name"
 
-input="$1"
+# Check if the job is running
+JOB_STATUS=$(autorep -J "$JOB_NAME" -q | grep "RU")
 
-if [ "$input" != "ON" ] && [ "$input" != "OFF" ]; then
-  echo "Only ON or OFF are valid"
-  exit 1
-fi
-
-# Call another script to get the output (replace with your actual script)
-other_script_output=$(./other_script.sh)
-
-# Check the conditions based on input and output of the other script
-if [ "$input" == "ON" ] && [ "$other_script_output" -eq 0 ]; then
-  exit 0
-elif [ "$input" == "OFF" ] && [ "$other_script_output" -eq 1 ]; then
-  exit 0
+if [[ $JOB_STATUS == *"RU"* ]]; then
+    echo "Job $JOB_NAME is currently running."
+    
+    # Optionally, check for some condition
+    if [ some_condition ]; then
+        # Kill the running job
+        echo "Killing job $JOB_NAME..."
+        sendevent -E KILLJOB -J "$JOB_NAME"
+        sleep 5  # Wait for the job to stop
+        
+        # On Ice the job
+        echo "Putting job $JOB_NAME on ice..."
+        sendevent -E ON_ICE -J "$JOB_NAME"
+    else
+        echo "Condition not met, not killing the job."
+    fi
 else
-  # Exit with a non-zero status for invalid conditions
-  exit 1
+    echo "Job $JOB_NAME is not running."
+    
+    # Put the job on ice directly
+    echo "Putting job $JOB_NAME on ice..."
+    sendevent -E ON_ICE -J "$JOB_NAME"
 fi
