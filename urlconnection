@@ -1,0 +1,125 @@
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.KeyStore;
+import java.util.Properties;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.KeyManagerFactory;
+
+import org.json.JSONObject;
+
+public class TiaaApiExample {
+
+    private static String tokenUrl;
+    private static String dataUrl;
+    private static String trustStorePath;
+    private static String trustStorePassword;
+    private static String keyStorePath;
+    private static String keyStorePassword;
+    private static String username;
+    private static String password;
+
+    public static void main(String[] args) {
+        try {
+            loadProperties();
+            setupSSL();
+
+            String token = getToken();
+            if (token != null) {
+                callApiWithToken(token);
+            } else {
+                System.out.println("Failed to retrieve token.");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void loadProperties() throws Exception {
+        Properties properties = new Properties();
+        try (FileInputStream input = new FileInputStream("config.properties")) {
+            properties.load(input);
+            tokenUrl = properties.getProperty("token.url");
+            dataUrl = properties.getProperty("data.url");
+            trustStorePath = properties.getProperty("trust.store.path");
+            trustStorePassword = properties.getProperty("trust.store.password");
+            keyStorePath = properties.getProperty("key.store.path");
+            keyStorePassword = properties.getProperty("key.store.password");
+            username = properties.getProperty("username");
+            password = properties.getProperty("password");
+        }
+    }
+
+    private static void setupSSL() throws Exception {
+        // Load TrustStore
+        KeyStore trustStore = KeyStore.getInstance("JKS");
+        trustStore.load(new FileInputStream(trustStorePath), trustStorePassword.toCharArray());
+
+        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        trustManagerFactory.init(trustStore);
+
+        // Load KeyStore
+        KeyStore keyStore = KeyStore.getInstance("JKS");
+        keyStore.load(new FileInputStream(keyStorePath), keyStorePassword.toCharArray());
+
+        KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        keyManagerFactory.init(keyStore, keyStorePassword.toCharArray());
+
+        // Setup SSL context
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
+        SSLContext.setDefault(sslContext);
+    }
+
+    private static String getToken() throws Exception {
+        URL url = new URL(tokenUrl);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Content-Type", "application/json");
+        conn.setDoOutput(true);
+
+        // Create JSON input
+        String jsonInputString = String.format("{\"username\": \"%s\", \"password\": \"%s\"}", username, password);
+        try (OutputStream os = conn.getOutputStream()) {
+            byte[] input = jsonInputString.getBytes("utf-8");
+            os.write(input, 0, input.length);
+        }
+
+        if (conn.getResponseCode() == HttpURLConnection.HTTP_OK) {
+            BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"));
+            StringBuilder response = new StringBuilder();
+            String responseLine;
+            while ((responseLine = br.readLine()) != null) {
+                response.append(responseLine.trim());
+            }
+            JSONObject jsonResponse = new JSONObject(response.toString());
+            return jsonResponse.getString("token"); // Adjust based on the actual JSON response
+        } else {
+            System.out.println("Error in getting token: " + conn.getResponseCode());
+            return null;
+        }
+    }
+
+    private static void callApiWithToken(String token) throws Exception {
+        URL url = new URL(dataUrl);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("Authorization", "Bearer " + token);
+
+        if (conn.getResponseCode() == HttpURLConnection.HTTP_OK) {
+            BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"));
+            StringBuilder response = new StringBuilder();
+            String responseLine;
+            while ((responseLine = br.readLine()) != null) {
+                response.append(responseLine.trim());
+            }
+            System.out.println("Data: " + response.toString());
+        } else {
+            System.out.println("Error in calling API: " + conn.getResponseCode());
+        }
+    }
+}
