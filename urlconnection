@@ -22,8 +22,15 @@ public class TiaaApiExample {
     private static String password;
 
     public static void main(String[] args) {
+        if (args.length < 1) {
+            System.err.println("Usage: java TiaaApiExample <config-file-path>");
+            return;
+        }
+
+        String configFilePath = args[0];
+
         try {
-            loadProperties();
+            loadProperties(configFilePath);
             setupSSL();
 
             String token = getToken();
@@ -37,9 +44,9 @@ public class TiaaApiExample {
         }
     }
 
-    private static void loadProperties() throws Exception {
+    private static void loadProperties(String configFilePath) throws Exception {
         Properties properties = new Properties();
-        try (FileInputStream input = new FileInputStream("config.properties")) {
+        try (FileInputStream input = new FileInputStream(configFilePath)) {
             properties.load(input);
             tokenUrl = properties.getProperty("token.url");
             dataUrl = properties.getProperty("data.url");
