@@ -1,33 +1,33 @@
-private static String getToken() throws Exception {
-    URL url = new URL(tokenUrl);
-    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-    conn.setRequestMethod("POST");
-    conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded"); // Set content type
-    conn.setRequestProperty("Accept", "application/json"); // Add multiple headers as needed
-    conn.setRequestProperty("Custom-Header", "CustomValue"); // Example of a custom header
-    conn.setDoOutput(true);
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
 
-    // Create form data
-    String formData = String.format("username=%s&password=%s", 
-                                     URLEncoder.encode(username, "UTF-8"), 
-                                     URLEncoder.encode(password, "UTF-8"));
+// ...
 
-    // Write form data to the output stream
-    try (OutputStream os = conn.getOutputStream()) {
-        byte[] input = formData.getBytes("utf-8");
-        os.write(input, 0, input.length);
-    }
+private static void setupSSL() throws Exception {
+    // Load TrustStore
+    KeyStore trustStore = KeyStore.getInstance("JKS");
+    trustStore.load(new FileInputStream(trustStorePath), trustStorePassword.toCharArray());
 
-    if (conn.getResponseCode() == HttpURLConnection.HTTP_OK) {
-        BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"));
-        StringBuilder response = new StringBuilder();
-        String responseLine;
-        while ((responseLine = br.readLine()) != null) {
-            response.append(responseLine.trim());
+    TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+    trustManagerFactory.init(trustStore);
+
+    // Load KeyStore
+    KeyStore keyStore = KeyStore.getInstance("JKS");
+    keyStore.load(new FileInputStream(keyStorePath), keyStorePassword.toCharArray());
+
+    KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+    keyManagerFactory.init(keyStore, keyStorePassword.toCharArray());
+
+    // Setup SSL context
+    SSLContext sslContext = SSLContext.getInstance("TLS");
+    sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
+    SSLContext.setDefault(sslContext);
+
+    // Disable hostname verification
+    HttpsURLConnection.setDefaultHostnameVerifier(new HostnameVerifier() {
+        @Override
+        public boolean verify(String hostname, SSLSession session) {
+            return true; // Accept all hostnames
         }
-        return parseToken(response.toString());
-    } else {
-        System.out.println("Error in getting token: " + conn.getResponseCode());
-        return null;
-    }
+    });
 }
