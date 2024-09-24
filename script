@@ -1,31 +1,21 @@
 #!/bin/bash
 
-# Job name to check
-JOB_NAME="your_job_name"
+# Variables
+JKS_FILE="yourkeystore.jks"
+JKS_PASSWORD="yourJksPassword"
+P12_PASSWORD="yourP12Password"
+TEMP_P12_FILE=$(mktemp)  # Temporary file for PKCS12
 
-# Check if the job is running
-JOB_STATUS=$(autorep -J "$JOB_NAME" -q | grep "RU")
+# Convert JKS to PKCS12 on the fly
+keytool -importkeystore \
+    -srckeystore $JKS_FILE \
+    -srcstorepass $JKS_PASSWORD \
+    -destkeystore $TEMP_P12_FILE \
+    -deststoretype PKCS12 \
+    -deststorepass $P12_PASSWORD
 
-if [[ $JOB_STATUS == *"RU"* ]]; then
-    echo "Job $JOB_NAME is currently running."
-    
-    # Optionally, check for some condition
-    if [ some_condition ]; then
-        # Kill the running job
-        echo "Killing job $JOB_NAME..."
-        sendevent -E KILLJOB -J "$JOB_NAME"
-        sleep 5  # Wait for the job to stop
-        
-        # On Ice the job
-        echo "Putting job $JOB_NAME on ice..."
-        sendevent -E ON_ICE -J "$JOB_NAME"
-    else
-        echo "Condition not met, not killing the job."
-    fi
-else
-    echo "Job $JOB_NAME is not running."
-    
-    # Put the job on ice directly
-    echo "Putting job $JOB_NAME on ice..."
-    sendevent -E ON_ICE -J "$JOB_NAME"
-fi
+# Use the PKCS12 file with curl
+curl --cert-type P12 --cert $TEMP_P12_FILE:$P12_PASSWORD https://example.com
+
+# Clean up temporary PKCS12 file
+rm $TEMP_P12_FILE
