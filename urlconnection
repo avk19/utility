@@ -6,6 +6,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.security.KeyStore;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.stream.Collectors;
 import javax.net.ssl.HostnameVerifier;
@@ -37,11 +38,10 @@ public class TiaaApiExample {
             loadProperties(configFilePath);
             setupSSL();
 
-            getToken()
-                .ifPresentOrElse(
-                    TiaaApiExample::callApiWithToken,
-                    () -> System.out.println("Failed to retrieve token.")
-                );
+            getToken().ifPresentOrElse(
+                TiaaApiExample::callApiWithToken,
+                () -> System.out.println("Failed to retrieve token.")
+            );
         } catch (Exception e) {
             e.printStackTrace();
         }
