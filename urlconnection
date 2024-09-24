@@ -1,33 +1,145 @@
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.security.KeyStore;
+import java.util.Properties;
+import java.util.stream.Collectors;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.KeyManagerFactory;
 
-// ...
+public class TiaaApiExample {
 
-private static void setupSSL() throws Exception {
-    // Load TrustStore
-    KeyStore trustStore = KeyStore.getInstance("JKS");
-    trustStore.load(new FileInputStream(trustStorePath), trustStorePassword.toCharArray());
+    private static String tokenUrl;
+    private static String dataUrl;
+    private static String trustStorePath;
+    private static String trustStorePassword;
+    private static String keyStorePath;
+    private static String keyStorePassword;
+    private static String username;
+    private static String password;
 
-    TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-    trustManagerFactory.init(trustStore);
-
-    // Load KeyStore
-    KeyStore keyStore = KeyStore.getInstance("JKS");
-    keyStore.load(new FileInputStream(keyStorePath), keyStorePassword.toCharArray());
-
-    KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-    keyManagerFactory.init(keyStore, keyStorePassword.toCharArray());
-
-    // Setup SSL context
-    SSLContext sslContext = SSLContext.getInstance("TLS");
-    sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
-    SSLContext.setDefault(sslContext);
-
-    // Disable hostname verification
-    HttpsURLConnection.setDefaultHostnameVerifier(new HostnameVerifier() {
-        @Override
-        public boolean verify(String hostname, SSLSession session) {
-            return true; // Accept all hostnames
+    public static void main(String[] args) {
+        if (args.length < 1) {
+            System.err.println("Usage: java TiaaApiExample <config-file-path>");
+            return;
         }
-    });
+
+        String configFilePath = args[0];
+
+        try {
+            loadProperties(configFilePath);
+            setupSSL();
+
+            getToken()
+                .ifPresentOrElse(
+                    TiaaApiExample::callApiWithToken,
+                    () -> System.out.println("Failed to retrieve token.")
+                );
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void loadProperties(String configFilePath) throws Exception {
+        Properties properties = new Properties();
+        try (FileInputStream input = new FileInputStream(configFilePath)) {
+            properties.load(input);
+            tokenUrl = properties.getProperty("token.url");
+            dataUrl = properties.getProperty("data.url");
+            trustStorePath = properties.getProperty("trust.store.path");
+            trustStorePassword = properties.getProperty("trust.store.password");
+            keyStorePath = properties.getProperty("key.store.path");
+            keyStorePassword = properties.getProperty("key.store.password");
+            username = properties.getProperty("username");
+            password = properties.getProperty("password");
+        }
+    }
+
+    private static void setupSSL() throws Exception {
+        KeyStore trustStore = KeyStore.getInstance("JKS");
+        trustStore.load(new FileInputStream(trustStorePath), trustStorePassword.toCharArray());
+
+        TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        trustManagerFactory.init(trustStore);
+
+        KeyStore keyStore = KeyStore.getInstance("JKS");
+        keyStore.load(new FileInputStream(keyStorePath), keyStorePassword.toCharArray());
+
+        KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+        keyManagerFactory.init(keyStore, keyStorePassword.toCharArray());
+
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), null);
+        SSLContext.setDefault(sslContext);
+
+        // Disable hostname verification
+        HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> true);
+    }
+
+    private static Optional<String> getToken() {
+        try {
+            URL url = new URL(tokenUrl);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setDoOutput(true);
+
+            String formData = String.format("username=%s&password=%s",
+                    URLEncoder.encode(username, "UTF-8"),
+                    URLEncoder.encode(password, "UTF-8"));
+
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(formData.getBytes("utf-8"));
+            }
+
+            if (conn.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                String response = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"))
+                        .lines()
+                        .collect(Collectors.joining("\n"));
+                return Optional.of(parseToken(response));
+            } else {
+                System.out.println("Error in getting token: " + conn.getResponseCode());
+                return Optional.empty();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Optional.empty();
+        }
+    }
+
+    private static String parseToken(String jsonResponse) {
+        String tokenKey = "\"token\":\"";
+        int startIndex = jsonResponse.indexOf(tokenKey) + tokenKey.length();
+        int endIndex = jsonResponse.indexOf("\"", startIndex);
+        return (startIndex > -1 && endIndex > -1) ? jsonResponse.substring(startIndex, endIndex) : null;
+    }
+
+    private static void callApiWithToken(String token) {
+        try {
+            URL url = new URL(dataUrl);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Authorization", "Bearer " + token);
+            conn.setRequestProperty("Accept", "application/json");
+
+            if (conn.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                String response = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"))
+                        .lines()
+                        .collect(Collectors.joining("\n"));
+                System.out.println("Data: " + response);
+            } else {
+                System.out.println("Error in calling API: " + conn.getResponseCode());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }
