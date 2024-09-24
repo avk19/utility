@@ -10,8 +10,6 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.KeyManagerFactory;
 
-import org.json.JSONObject;
-
 public class TiaaApiExample {
 
     private static String tokenUrl;
@@ -96,12 +94,19 @@ public class TiaaApiExample {
             while ((responseLine = br.readLine()) != null) {
                 response.append(responseLine.trim());
             }
-            JSONObject jsonResponse = new JSONObject(response.toString());
-            return jsonResponse.getString("token"); // Adjust based on the actual JSON response
+            return parseToken(response.toString());
         } else {
             System.out.println("Error in getting token: " + conn.getResponseCode());
             return null;
         }
+    }
+
+    private static String parseToken(String jsonResponse) {
+        // Simple parsing of JSON to extract the token
+        String tokenKey = "\"token\":\"";
+        int startIndex = jsonResponse.indexOf(tokenKey) + tokenKey.length();
+        int endIndex = jsonResponse.indexOf("\"", startIndex);
+        return (startIndex > -1 && endIndex > -1) ? jsonResponse.substring(startIndex, endIndex) : null;
     }
 
     private static void callApiWithToken(String token) throws Exception {
