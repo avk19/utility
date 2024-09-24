@@ -97,10 +97,17 @@ public class TiaaApiExample {
             conn.setRequestProperty("Accept", "application/json");
             conn.setDoOutput(true);
 
-            String formData = String.format("username=%s&password=%s",
-                    URLEncoder.encode(username, "UTF-8"),
-                    URLEncoder.encode(password, "UTF-8"));
+            // URL-encode parameters
+            String usernameEncoded = URLEncoder.encode(username, "UTF-8");
+            String passwordEncoded = URLEncoder.encode(password, "UTF-8");
+            String additionalParam1 = URLEncoder.encode("value1", "UTF-8"); // Example additional parameter
+            String additionalParam2 = URLEncoder.encode("value2", "UTF-8"); // Another example
 
+            // Create form data with additional parameters
+            String formData = String.format("username=%s&password=%s&param1=%s&param2=%s",
+                    usernameEncoded, passwordEncoded, additionalParam1, additionalParam2);
+
+            // Write form data to the output stream
             try (OutputStream os = conn.getOutputStream()) {
                 os.write(formData.getBytes("utf-8"));
             }
