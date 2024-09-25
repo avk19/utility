@@ -1,21 +1,50 @@
-{
-  "name": "set_env_vars",
-  "description": "Role to set environment variables for multiple users",
-  "run_list": [
-    "recipe[profile_variable]"
-  ],
-  "override_attributes": {
-    "profile_variable": {
-      "users": {
-        "user1": {
-          "MY_VARIABLE": "my_value1",
-          "ANOTHER_VARIABLE": "another_value1"
-        },
-        "user2": {
-          "MY_VARIABLE": "my_value2",
-          "ANOTHER_VARIABLE": "another_value2"
-        }
-      }
-    }
-  }
-}
+If your truststore and keystore are in .jks (Java Keystore) format, you need to convert them to .pem or .p12 format to use with curl. curl doesn't support .jks directly, but you can use the keytool and openssl commands to convert the keystore and truststore to a format that curl can handle.
+
+Steps to Convert .jks to .pem or .p12:
+
+1. Export from .jks to .p12 (PKCS12 format)
+
+Use the following command to convert a Java keystore (.jks) to a PKCS12 (.p12) file:
+
+keytool -importkeystore -srckeystore keystore.jks -destkeystore keystore.p12 -deststoretype PKCS12 -srcalias <alias> -destalias <alias>
+
+Replace keystore.jks with the path to your Java keystore file.
+
+Replace keystore.p12 with the name for your output PKCS12 keystore.
+
+Replace <alias> with the alias for the certificate you want to export.
+
+
+2. Convert the .p12 file to .pem (optional)
+
+If curl requires .pem format, you can further convert the PKCS12 keystore (.p12) to separate .pem files using openssl:
+
+Export the client certificate and key from the .p12 file:
+
+
+openssl pkcs12 -in keystore.p12 -clcerts -nokeys -out client_cert.pem
+openssl pkcs12 -in keystore.p12 -nocerts -out private_key.pem
+
+Export the CA certificate (truststore):
+
+
+You can extract the CA certificate from the truststore .jks file using the following command:
+
+keytool -exportcert -keystore truststore.jks -alias <alias> -rfc -file ca_cert.pem
+
+3. Use with curl
+
+Once you have the .pem or .p12 files, you can use them in your curl command:
+
+For PKCS12 format (.p12):
+
+
+curl --cert /path/to/keystore.p12 --cert-type P12 --cacert /path/to/ca_cert.pem https://api.example.com/endpoint
+
+For PEM format (.pem):
+
+
+curl --cert /path/to/client_cert.pem --key /path/to/private_key.pem --cacert /path/to/ca_cert.pem https://api.example.com/endpoint
+
+These steps allow you to convert and use the .jks keystore and truststore with curl.
+
