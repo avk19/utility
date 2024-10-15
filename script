@@ -1,21 +1,12 @@
-#!/bin/bash
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
-# Variables
-JKS_FILE="yourkeystore.jks"
-JKS_PASSWORD="yourJksPassword"
-P12_PASSWORD="yourP12Password"
-TEMP_P12_FILE=$(mktemp)  # Temporary file for PKCS12
+<input type="text" id="myInput" value="Copy and paste are disabled">
 
-# Convert JKS to PKCS12 on the fly
-keytool -importkeystore \
-    -srckeystore $JKS_FILE \
-    -srcstorepass $JKS_PASSWORD \
-    -destkeystore $TEMP_P12_FILE \
-    -deststoretype PKCS12 \
-    -deststorepass $P12_PASSWORD
-
-# Use the PKCS12 file with curl
-curl --cert-type P12 --cert $TEMP_P12_FILE:$P12_PASSWORD https://example.com
-
-# Clean up temporary PKCS12 file
-rm $TEMP_P12_FILE
+<script>
+  $(document).ready(function() {
+    $('#myInput').on('copy paste cut', function(e) {
+      e.preventDefault(); // Prevent the default copy, paste, or cut actions
+      alert('Copy, paste, and cut actions are disabled.');
+    });
+  });
+</script>
