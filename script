@@ -1,12 +1,8 @@
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+function compareIgnoreCase(value1, value2) {
+  // Convert null, undefined, and blank values to an empty string for comparison
+  value1 = value1 ? value1.toString().toLowerCase() : "";
+  value2 = value2 ? value2.toString().toLowerCase() : "";
 
-<input type="text" id="myInput" value="Copy and paste are disabled">
+  return value1 === value2;
+}
 
-<script>
-  $(document).ready(function() {
-    $('#myInput').on('copy paste cut', function(e) {
-      e.preventDefault(); // Prevent the default copy, paste, or cut actions
-      alert('Copy, paste, and cut actions are disabled.');
-    });
-  });
-</script>
