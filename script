@@ -1,8 +1,23 @@
-function compareIgnoreCase(value1, value2) {
-  // Convert null, undefined, and blank values to an empty string for comparison
-  value1 = value1 ? value1.toString().toLowerCase() : "";
-  value2 = value2 ? value2.toString().toLowerCase() : "";
-
-  return value1 === value2;
+function getValueFromJson(jsonString, key) {
+    try {
+        // Parse the JSON string into an object
+        const jsonData = JSON.parse(jsonString);
+        
+        // Check if the key exists in the JSON object and if the value is not null
+        if (jsonData.hasOwnProperty(key) && jsonData[key] !== null) {
+            return jsonData[key];
+        } else {
+            return false; // Return false if the key doesn't exist or the value is null
+        }
+    } catch (error) {
+        console.error("Invalid JSON string:", error);
+        return false; // Return false if JSON parsing fails
+    }
 }
 
+// Example usage
+const jsonInput = '{"name": "John", "age": 30, "city": null}';
+const keyToFind = "city";
+const value = getValueFromJson(jsonInput, keyToFind);
+
+console.log(value); // Outputs: false
