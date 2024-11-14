@@ -1,0 +1,91 @@
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+import org.apache.commons.lang3.StringUtils;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+public class YourClassTest {
+
+    @Mock
+    private YourClass yourClassMock;
+
+    @InjectMocks
+    private YourClass yourClass; // The class that contains getAddressForIbFromBankDetails
+
+    @Mock
+    private BankDetail bankDetailMock;
+
+    @BeforeEach
+    public void setUp() {
+        yourClass = new YourClass(); // Initialize your class containing the method
+    }
+
+    @Test
+    public void testGetAddressForIbFromBankDetails_withValidBankDetail() {
+        // Arrange
+        String sortCode = "123456";
+        
+        when(yourClassMock.findClearingBank("SORTCODE", sortCode)).thenReturn(bankDetailMock);
+        when(bankDetailMock.getStreetAddress1()).thenReturn("123 Main Street, Suite A");
+        when(bankDetailMock.getStreetAddress2()).thenReturn("Building B");
+        when(bankDetailMock.getIsoCountryCode()).thenReturn("US");
+        when(bankDetailMock.getCity()).thenReturn("New York");
+        when(bankDetailMock.getZipCode()).thenReturn("12345");
+
+        // Mock the ISO country code lookup
+        when(yourClassMock.findISOCountryByCountryCodeTriage("US")).thenReturn("United States");
+
+        // Act
+        Address result = yourClass.getAddressForIbFromBankDetails(sortCode);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals("123 Main Street, Suite A", result.getAddressLine1());
+        assertEquals("Building B", result.getAddressLine2());
+        assertEquals("123 Main Street, Suite A, Building B", result.getAddressLines());
+        assertEquals("United States", result.getCountry());
+        assertEquals("New York", result.getCity());
+        assertEquals("12345", result.getPostalZipCode());
+    }
+
+    @Test
+    public void testGetAddressForIbFromBankDetails_withNullBankDetail() {
+        // Arrange
+        String sortCode = "123456";
+        when(yourClassMock.findClearingBank("SORTCODE", sortCode)).thenReturn(null);
+
+        // Act
+        Address result = yourClass.getAddressForIbFromBankDetails(sortCode);
+
+        // Assert
+        assertNull(result);
+    }
+
+    @Test
+    public void testGetAddressForIbFromBankDetails_withTruncatedFields() {
+        // Arrange
+        String sortCode = "123456";
+        
+        when(yourClassMock.findClearingBank("SORTCODE", sortCode)).thenReturn(bankDetailMock);
+        when(bankDetailMock.getStreetAddress1()).thenReturn(StringUtils.repeat("A", 35)); // 35 characters
+        when(bankDetailMock.getStreetAddress2()).thenReturn(StringUtils.repeat("B", 35)); // 35 characters
+        when(bankDetailMock.getCity()).thenReturn(StringUtils.repeat("C", 35)); // 35 characters
+        when(bankDetailMock.getZipCode()).thenReturn(StringUtils.repeat("D", 20)); // 20 characters
+
+        // Act
+        Address result = yourClass.getAddressForIbFromBankDetails(sortCode);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(StringUtils.repeat("A", 30), result.getAddressLine1()); // Truncated to 30
+        assertEquals(StringUtils.repeat("B", 30), result.getAddressLine2()); // Truncated to 30
+        assertEquals(StringUtils.repeat("C", 30), result.getCity()); // Truncated to 30
+        assertEquals(StringUtils.repeat("D", 16), result.getPostalZipCode()); // Truncated to 16
+    }
+}
