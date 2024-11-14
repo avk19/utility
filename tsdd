@@ -1,0 +1,55 @@
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.*;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import org.springframework.orm.hibernate5.HibernateTemplate;
+import org.springframework.dao.support.DataAccessUtils;
+
+import java.util.Collections;
+
+public class BankDetailServiceTest {
+
+    @Mock
+    private HibernateTemplate hibernateTemplate;
+
+    @InjectMocks
+    private BankDetailService bankDetailService; // Assuming this is the service class containing indGleaningBankString
+
+    private static final String CLEARING_CODE_TYPE = "someClearingCode";
+    private static final String BANK_CODE = "someBankCode";
+
+    private BankDetail expectedBankDetail;
+
+    @Before
+    public void setUp() {
+        MockitoAnnotations.initMocks(this);
+        expectedBankDetail = new BankDetail(); // Initialize your expected BankDetail object as needed
+    }
+
+    @Test
+    public void testIndGleaningBankString() {
+        // Mock the hibernateTemplate findByNamedParam method to return the expected BankDetail wrapped in a list
+        when(hibernateTemplate.findByNamedParam(
+            eq("from BankDetail where id.clearingCodeType = :clearingCodeType and id.bankCode = :bankCode"),
+            eq(new String[]{"clearingCodeType", "bankCode"}),
+            eq(new Object[]{CLEARING_CODE_TYPE.toUpperCase(), BANK_CODE.toUpperCase()})
+        )).thenReturn(Collections.singletonList(expectedBankDetail));
+
+        // Call the method under test
+        BankDetail result = bankDetailService.indGleaningBankString(CLEARING_CODE_TYPE, BANK_CODE);
+
+        // Verify the result
+        assertEquals(expectedBankDetail, result);
+
+        // Verify the interaction with the hibernateTemplate
+        verify(hibernateTemplate).findByNamedParam(
+            eq("from BankDetail where id.clearingCodeType = :clearingCodeType and id.bankCode = :bankCode"),
+            eq(new String[]{"clearingCodeType", "bankCode"}),
+            eq(new Object[]{CLEARING_CODE_TYPE.toUpperCase(), BANK_CODE.toUpperCase()})
+        );
+    }
+}
