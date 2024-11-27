@@ -8,6 +8,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class AntToGradleConverterWithIvy {
 
@@ -62,7 +64,7 @@ public class AntToGradleConverterWithIvy {
             gradleContent.append("rootProject.name = '").append(projectName).append("'\n\n");
         }
 
-        // Parse properties
+        // Parse properties and apply replacements
         NodeList propertyNodes = document.getElementsByTagName("property");
         gradleContent.append("// Properties\n");
         for (int i = 0; i < propertyNodes.getLength(); i++) {
@@ -90,15 +92,20 @@ public class AntToGradleConverterWithIvy {
             gradleContent.append("task ").append(targetName).append(" {\n");
             gradleContent.append("    doLast {\n");
             gradleContent.append("        println 'Executing ").append(targetName).append("'\n");
-            gradleContent.append("    }\n");
-
-            // Process <ant> tasks within this target
+            
+            // Process child nodes (echo, ant tasks, etc.)
             NodeList childNodes = target.getChildNodes();
             for (int j = 0; j < childNodes.getLength(); j++) {
                 Node childNode = childNodes.item(j);
                 if (childNode.getNodeType() == Node.ELEMENT_NODE) {
                     Element childElement = (Element) childNode;
-                    if (childElement.getTagName().equals("ant")) {
+                    String childTag = childElement.getTagName();
+
+                    if (childTag.equals("echo")) {
+                        String message = childElement.getAttribute("message");
+                        message = replaceProperties(message, antProperties);
+                        gradleContent.append("        println '").append(message).append("'\n");
+                    } else if (childTag.equals("ant")) {
                         String antFile = childElement.getAttribute("antfile");
                         if (!antFile.isEmpty()) {
                             gradleContent.append("    // Converted from <ant antfile=\"").append(antFile).append("\">\n");
@@ -111,9 +118,33 @@ public class AntToGradleConverterWithIvy {
                     }
                 }
             }
+            gradleContent.append("    }\n");
             gradleContent.append("}\n\n");
         }
 
         return gradleContent.toString();
+    }
+
+    /**
+     * Replace placeholders like ${propertyName} in the input string with values from the map.
+     * 
+     * @param input The string to process for replacements
+     * @param antProperties The map of properties to use for replacement
+     * @return The string with properties replaced
+     */
+    private static String replaceProperties(String input, Map<String, String> antProperties) {
+        // Regex to match ${propertyName} in the input string
+        Pattern pattern = Pattern.compile("\\$\\{([^}]+)\\}");
+        Matcher matcher = pattern.matcher(input);
+        StringBuffer result = new StringBuffer();
+
+        while (matcher.find()) {
+            String propertyName = matcher.group(1);
+            String propertyValue = antProperties.getOrDefault(propertyName, matcher.group(0)); // default to original if not found
+            matcher.appendReplacement(result, propertyValue);
+        }
+        matcher.appendTail(result);
+
+        return result.toString();
     }
 }
