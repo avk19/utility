@@ -108,6 +108,8 @@ public class AntToGradleConverterWithIvy {
                     } else if (childTag.equals("ant")) {
                         String antFile = childElement.getAttribute("antfile");
                         if (!antFile.isEmpty()) {
+                            // Replace ${} in the antfile attribute
+                            antFile = replaceProperties(antFile, antProperties);
                             gradleContent.append("    // Converted from <ant antfile=\"").append(antFile).append("\">\n");
                             gradleContent.append("    includeBuild '").append(antFile).append("'\n");
 
