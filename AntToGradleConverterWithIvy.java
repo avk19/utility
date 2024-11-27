@@ -116,6 +116,9 @@ public class AntToGradleConverterWithIvy {
                             gradleContent.append(nestedGradleContent);
                         }
                     }
+                    
+                    // Replace attributes in all other tags recursively
+                    replaceAttributesWithProperties(childElement, antProperties);
                 }
             }
             gradleContent.append("    }\n");
@@ -146,5 +149,21 @@ public class AntToGradleConverterWithIvy {
         matcher.appendTail(result);
 
         return result.toString();
+    }
+
+    /**
+     * Replace property placeholders in all attributes of an XML element.
+     * 
+     * @param element The XML element to process
+     * @param antProperties The map of properties to use for replacement
+     */
+    private static void replaceAttributesWithProperties(Element element, Map<String, String> antProperties) {
+        // Process each attribute in the element
+        for (int i = 0; i < element.getAttributes().getLength(); i++) {
+            Attr attribute = (Attr) element.getAttributes().item(i);
+            String attributeValue = attribute.getValue();
+            String updatedValue = replaceProperties(attributeValue, antProperties);
+            attribute.setValue(updatedValue);
+        }
     }
 }
