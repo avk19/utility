@@ -1,73 +1,93 @@
-Here's an enhanced text-based outline that includes TLS (Transport Layer Security) to secure the bidirectional communication between the JMS container in Tomcat 9 (RHEL8) and the MQ farm server:
+AutoSys communication involves agents and the AutoSys Scheduler (or CLI Server) to execute jobs and commands effectively. Here is a detailed breakdown:
 
 
 ---
 
-Diagram: Secure Bidirectional Communication Between JMS Container (Tomcat 9) and MQ Farm Server Using TLS
+1. Communication Flow
 
-1. Tomcat 9 (RHEL8 Server)
+AutoSys Agent: Installed on the target machine where jobs run.
 
-JMS Container
-
-Listener: Receives TLS-encrypted messages from the MQ farm server.
-
-Producer: Sends TLS-encrypted messages to the MQ farm server.
+AutoSys Scheduler (CLI Server): Hosts the AutoSys Event Processor and manages job execution commands.
 
 
+The communication between the AutoSys agent and CLI server generally uses the CA Workload Automation AutoSys protocol with a secure channel (e.g., TCP/IP).
 
+1. Job Submission:
+When a job is defined and scheduled, the Event Processor on the scheduler communicates with the AutoSys agent to:
 
-2. MQ Farm Server
+Start, stop, or monitor the job execution.
 
-Message Broker: Manages secure communication between different applications.
-
-Message Queue: Stores messages temporarily for bidirectional message flow.
+Retrieve job status and return logs/output.
 
 
 
-3. TLS-Encrypted Communication Flow
+2. Command Execution:
+For commands initiated from the AutoSys CLI (e.g., autorep, sendevent, or job execution), the CLI interacts with:
 
-Outbound Messages:
+The AutoSys Database for job details.
 
-Producer in the JMS container sends messages to the Message Queue using TLS encryption.
-
-
-Inbound Messages:
-
-Listener in the JMS container receives messages from the Message Queue, with TLS securing the connection.
+The AutoSys Agent through the Event Processor.
 
 
 
+3. Communication Protocol:
+
+AutoSys uses TCP/IP for communication between the CLI Server, Scheduler, and Agents.
+
+Default ports:
+
+Event Server: Port 7520 (configurable).
+
+Agent Port: Default is AutoSys Agent Listener (Port 5280).
 
 
-
----
-
-Flow Description with TLS:
-
-TLS Setup:
-
-Both the JMS container in Tomcat 9 and the MQ farm server are configured with TLS certificates to authenticate and encrypt communications.
-
-The RHEL8 server hosting Tomcat 9 and the MQ farm server negotiate a secure connection, ensuring that all messages exchanged are encrypted in transit.
-
-
-Outbound Communication (Tomcat 9 → MQ Farm Server):
-
-The JMS Producer creates messages, which are encrypted via TLS before being sent to the MQ server’s Message Queue.
-
-The MQ farm server authenticates the JMS container’s TLS certificate, ensuring a trusted connection.
-
-
-Inbound Communication (MQ Farm Server → Tomcat 9):
-
-The Message Queue on the MQ farm server sends TLS-encrypted messages to the JMS Listener in Tomcat 9.
-
-The JMS Listener decrypts messages only after validating the MQ server’s certificate, ensuring message authenticity and integrity.
 
 
 
 
 ---
 
-This setup provides end-to-end encryption and secure, authenticated communication for both incoming and outgoing messages, protecting data in transit and ensuring message integrity.
+2. Commands Used in AutoSys CLI
+
+sendevent:
+Used to send events such as starting a job, stopping it, or defining a job's status.
+
+Example:
+
+sendevent -E STARTJOB -J job_name
+
+autorep:
+Reports the status of jobs.
+
+Example:
+
+autorep -J job_name -d
+
+
+These commands pass through the CLI server and route commands to the agent via the Event Processor.
+
+
+---
+
+3. References to Documentation
+
+Official documentation from Broadcom for CA Workload Automation AutoSys includes details on communication and processes. You can refer to:
+
+1. CA Workload Automation AE Documentation
+
+Look for topics on "Agent Communication", "Event Processor", and "CLI Commands".
+
+
+
+2. AutoSys Agent Installation and Configuration Guide
+
+Details the ports, protocols, and settings for agent-to-server communication.
+
+
+
+
+
+---
+
+Let me know if you need further clarification or step-by-step details for any specific command or flow!
 
