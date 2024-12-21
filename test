@@ -1,50 +1,68 @@
 #!/bin/bash
 
-# Define database credentials
+# Global Variables
 DB_USER="your_username"
 DB_PASS="your_password"
 DB_NAME="your_database"
-
-# Define file paths
 LOG_FILE="/path/to/exception_log.txt"
-
-# Define the error pattern as a reusable variable
 ERROR_PATTERN="%specific_error_pattern%"
 
-# Query to count exceptions in the last 30 minutes
-exception_count=$(sqlplus -s $DB_USER/$DB_PASS@$DB_NAME <<EOF
+# Function to execute a database query
+run_query() {
+  local query="$1"
+  sqlplus -s $DB_USER/$DB_PASS@$DB_NAME <<EOF
 SET FEEDBACK OFF;
 SET HEADING OFF;
-SELECT COUNT(*)
-FROM exceptions
-WHERE exception_date >= SYSDATE - INTERVAL '30' MINUTE
-  AND exception_details LIKE '$ERROR_PATTERN';
+$query
 EXIT;
 EOF
-)
+}
 
-# Trim whitespace from exception_count
-exception_count=$(echo $exception_count | xargs)
+# Function to count exceptions in the last 30 minutes
+count_exceptions() {
+  local query="SELECT COUNT(*)
+               FROM exceptions
+               WHERE exception_date >= SYSDATE - INTERVAL '30' MINUTE
+                 AND exception_details LIKE '$ERROR_PATTERN';"
+  local count=$(run_query "$query")
+  # Trim whitespace from the output
+  echo $(echo "$count" | xargs)
+}
 
-if [ "$exception_count" -eq 0 ]; then
-  echo "No exceptions found in the last 30 minutes. Skipping further checks."
-  exit 0
-else
-  echo "Exceptions found: $exception_count. Fetching details..."
-fi
-
-# Fetch exceptions if they exist
-sqlplus -s $DB_USER/$DB_PASS@$DB_NAME <<EOF
+# Function to fetch and log exception details
+fetch_exceptions() {
+  local query="SELECT *
+               FROM exceptions
+               WHERE exception_date >= SYSDATE - INTERVAL '30' MINUTE
+                 AND exception_details LIKE '$ERROR_PATTERN';"
+  sqlplus -s $DB_USER/$DB_PASS@$DB_NAME <<EOF
 SET SERVEROUTPUT ON;
 SPOOL $LOG_FILE;
-
-SELECT *
-FROM exceptions
-WHERE exception_date >= SYSDATE - INTERVAL '30' MINUTE
-  AND exception_details LIKE '$ERROR_PATTERN';
-
+$query
 SPOOL OFF;
 EXIT;
 EOF
+}
 
-echo "Exception details logged to $LOG_FILE."
+# Main logic
+main() {
+  echo "Starting exception check..."
+  
+  # Step 1: Count exceptions
+  local exception_count=$(count_exceptions)
+  
+  if [ "$exception_count" -eq 0 ]; then
+    echo "No exceptions found in the last 30 minutes. Skipping further checks."
+    exit 0
+  else
+    echo "Exceptions found: $exception_count. Fetching details..."
+  fi
+  
+  # Step 2: Fetch exception details
+  fetch_exceptions
+  
+  echo "Exception details logged to $LOG_FILE."
+}
+
+# Run the main function
+main
