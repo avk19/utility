@@ -1,3 +1,12 @@
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+import javax.naming.NamingEnumeration;
+
 @Service
 public class LdapService {
 
@@ -111,9 +120,19 @@ public class LdapService {
     }
 
     private String extractDomainFromSam(String memberSam) {
-        // Implement logic to extract domain from SAMAccountName if needed
-        throw new UnsupportedOperationException("Domain extraction from SAMAccountName is not yet implemented");
+    // Check if memberSam is in the format DOMAIN\username
+    if (memberSam.contains("\\")) {
+        return memberSam.split("\\\\")[0].toLowerCase();
     }
+
+    // Check if memberSam is in the format username@domain.com
+    if (memberSam.contains("@")) {
+        return memberSam.split("@")[1].toLowerCase();
+    }
+
+    // If domain cannot be determined, throw an exception
+    throw new IllegalArgumentException("Unable to extract domain from SAMAccountName: " + memberSam);
+}
 
     private String extractGroupNameFromDn(String groupDn) {
         Pattern cnPattern = Pattern.compile("CN=([^,]+)");
