@@ -1,2 +1,0 @@
-# utility
-various utility purpose

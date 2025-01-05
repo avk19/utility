@@ -1,45 +1,67 @@
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.ldap.core.LdapTemplate;
-import org.springframework.ldap.filter.EqualsFilter;
-import org.springframework.stereotype.Service;
-import org.springframework.ldap.core.AttributesMapper;
-
-import javax.naming.directory.Attributes;
-import java.util.List;
-
 @Service
 public class LdapService {
 
-    private final LdapTemplate ldapTemplate;
+    private final LdapDynamicConfig ldapDynamicConfig;
 
-    @Autowired
-    public LdapService(LdapTemplate ldapTemplate) {
-        this.ldapTemplate = ldapTemplate;
+    public LdapService(LdapDynamicConfig ldapDynamicConfig) {
+        this.ldapDynamicConfig = ldapDynamicConfig;
     }
 
-    public List<String> getGroupMembersSamAccountNames(String groupName) {
-        // Filter to search the group by its 'cn' (common name)
-        EqualsFilter filter = new EqualsFilter("cn", groupName);
+    /**
+     * Retrieve members of a group by its name.
+     */
+    public List<String> getGroupMembers(String groupName, String domain) {
+        LdapTemplate ldapTemplate = ldapDynamicConfig.getLdapTemplateForDomain(domain);
 
-        // Search for group members and fetch their 'sAMAccountName'
-        return ldapTemplate.search("", filter.encode(), (Attributes attrs) -> {
-            if (attrs != null && attrs.get("member") != null) {
-                String memberDn = attrs.get("member").get().toString();
-                return getSamAccountName(memberDn);
-            }
-            return null;
-        });
+        return ldapTemplate.search(
+            query().base("ou=Groups")
+                    .where("objectClass").is("group")
+                    .and("cn").is(groupName),
+            (AttributesMapper<String>) attrs -> (String) attrs.get("member").get()
+        );
     }
 
-    private String getSamAccountName(String memberDn) {
-        // Lookup the 'sAMAccountName' attribute directly in the same operation
-        List<String> result = ldapTemplate.search(memberDn, "(objectClass=*)", SearchControls.OBJECT_SCOPE,
-                new String[]{"sAMAccountName"}, (Attributes attrs) -> {
-                    if (attrs != null && attrs.get("sAMAccountName") != null) {
-                        return attrs.get("sAMAccountName").get().toString();
-                    }
-                    return null;
-                });
-        return result.isEmpty() ? null : result.get(0);
+    /**
+     * Retrieve all groups a member belongs to.
+     */
+    public List<String> getMemberGroups(String memberDn, String domain) {
+        LdapTemplate ldapTemplate = ldapDynamicConfig.getLdapTemplateForDomain(domain);
+
+        return ldapTemplate.search(
+            query().base("ou=Groups")
+                    .where("objectClass").is("group")
+                    .and("member").is(memberDn),
+            (AttributesMapper<String>) attrs -> (String) attrs.get("cn").get()
+        );
+    }
+
+    /**
+     * Resolve domain dynamically based on the userPrincipalName.
+     */
+    public String resolveDomain(String userPrincipalName) {
+        if (userPrincipalName == null || !userPrincipalName.contains("@")) {
+            throw new IllegalArgumentException("Invalid userPrincipalName format");
+        }
+        return userPrincipalName.split("@")[1];
+    }
+
+    /**
+     * Helper to get user DN dynamically from any domain.
+     */
+    public String getUserDn(String userPrincipalName) {
+        String domain = resolveDomain(userPrincipalName);
+        LdapTemplate ldapTemplate = ldapDynamicConfig.getLdapTemplateForDomain(domain);
+
+        List<String> results = ldapTemplate.search(
+            query().base("ou=Users")
+                    .where("userPrincipalName").is(userPrincipalName),
+            (AttributesMapper<String>) attrs -> (String) attrs.get("distinguishedName").get()
+        );
+
+        if (results.isEmpty()) {
+            throw new IllegalArgumentException("User not found in domain: " + domain);
+        }
+
+        return results.get(0);
     }
 }
