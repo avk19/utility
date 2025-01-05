@@ -1,67 +1,77 @@
 @Service
 public class LdapService {
 
-    private final LdapDynamicConfig ldapDynamicConfig;
-
-    public LdapService(LdapDynamicConfig ldapDynamicConfig) {
-        this.ldapDynamicConfig = ldapDynamicConfig;
-    }
+    @Autowired
+    private LdapDynamicConfig ldapDynamicConfig;
 
     /**
-     * Retrieve members of a group by its name.
+     * Fetches all members of a given group, including cross-domain members.
+     *
+     * @param groupName the name of the group
+     * @param domain the domain of the group
+     * @return list of members
      */
-    public List<String> getGroupMembers(String groupName, String domain) {
+    public List<String> getGroupMembersWithCrossDomain(String groupName, String domain) {
         LdapTemplate ldapTemplate = ldapDynamicConfig.getLdapTemplateForDomain(domain);
 
-        return ldapTemplate.search(
-            query().base("ou=Groups")
-                    .where("objectClass").is("group")
-                    .and("cn").is(groupName),
+        // Search filter to fetch members of the group
+        Filter groupFilter = new EqualsFilter("cn", groupName);
+        String baseDn = ""; // Adjust based on your AD structure
+
+        // Fetch members from the intranet domain
+        List<String> memberDns = ldapTemplate.search(
+            baseDn,
+            groupFilter.encode(),
             (AttributesMapper<String>) attrs -> (String) attrs.get("member").get()
         );
-    }
 
-    /**
-     * Retrieve all groups a member belongs to.
-     */
-    public List<String> getMemberGroups(String memberDn, String domain) {
-        LdapTemplate ldapTemplate = ldapDynamicConfig.getLdapTemplateForDomain(domain);
+        List<String> resolvedMembers = new ArrayList<>();
 
-        return ldapTemplate.search(
-            query().base("ou=Groups")
-                    .where("objectClass").is("group")
-                    .and("member").is(memberDn),
-            (AttributesMapper<String>) attrs -> (String) attrs.get("cn").get()
-        );
-    }
+        for (String memberDn : memberDns) {
+            if (isCrossDomainMember(memberDn, domain)) {
+                // Fetch details of cross-domain members
+                String crossDomain = extractDomainFromDn(memberDn);
+                LdapTemplate crossDomainLdapTemplate = ldapDynamicConfig.getLdapTemplateForDomain(crossDomain);
 
-    /**
-     * Resolve domain dynamically based on the userPrincipalName.
-     */
-    public String resolveDomain(String userPrincipalName) {
-        if (userPrincipalName == null || !userPrincipalName.contains("@")) {
-            throw new IllegalArgumentException("Invalid userPrincipalName format");
-        }
-        return userPrincipalName.split("@")[1];
-    }
-
-    /**
-     * Helper to get user DN dynamically from any domain.
-     */
-    public String getUserDn(String userPrincipalName) {
-        String domain = resolveDomain(userPrincipalName);
-        LdapTemplate ldapTemplate = ldapDynamicConfig.getLdapTemplateForDomain(domain);
-
-        List<String> results = ldapTemplate.search(
-            query().base("ou=Users")
-                    .where("userPrincipalName").is(userPrincipalName),
-            (AttributesMapper<String>) attrs -> (String) attrs.get("distinguishedName").get()
-        );
-
-        if (results.isEmpty()) {
-            throw new IllegalArgumentException("User not found in domain: " + domain);
+                String resolvedMember = fetchUserDetails(memberDn, crossDomainLdapTemplate);
+                resolvedMembers.add(resolvedMember);
+            } else {
+                resolvedMembers.add(memberDn);
+            }
         }
 
-        return results.get(0);
+        return resolvedMembers;
+    }
+
+    /**
+     * Checks if the member belongs to a different domain.
+     */
+    private boolean isCrossDomainMember(String memberDn, String currentDomain) {
+        return !memberDn.toLowerCase().contains(currentDomain.toLowerCase());
+    }
+
+    /**
+     * Extracts the domain from the DN.
+     */
+    private String extractDomainFromDn(String memberDn) {
+        Pattern domainPattern = Pattern.compile("DC=([a-zA-Z0-9]+),DC=([a-zA-Z0-9]+)");
+        Matcher matcher = domainPattern.matcher(memberDn);
+
+        if (matcher.find()) {
+            return matcher.group(1) + "." + matcher.group(2);
+        }
+
+        throw new IllegalArgumentException("Unable to extract domain from DN: " + memberDn);
+    }
+
+    /**
+     * Fetches user details for a given DN from the specified domain.
+     */
+    private String fetchUserDetails(String userDn, LdapTemplate ldapTemplate) {
+        return ldapTemplate.lookup(userDn, (AttributesMapper<String>) attrs -> {
+            // Fetch specific attributes of the user
+            return (String) attrs.get("cn").get();
+        });
     }
 }
+
