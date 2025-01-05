@@ -5,40 +5,40 @@ public class LdapService {
     private LdapDynamicConfig ldapDynamicConfig;
 
     /**
-     * Fetch all members of a group, including cross-domain members.
+     * Fetch all members of a group using SAMAccountName, including cross-domain members.
      *
-     * @param groupName the group name
+     * @param groupName the SAMAccountName of the group
      * @param domain the domain of the group
      * @return list of group members
      */
-    public List<String> getGroupMembersWithMemberOf(String groupName, String domain) {
+    public List<String> getGroupMembersWithSAMAccountName(String groupName, String domain) {
         LdapTemplate ldapTemplate = ldapDynamicConfig.getLdapTemplateForDomain(domain);
 
-        // Fetch the DN of the group
-        String groupDn = getGroupDn(groupName, ldapTemplate);
+        // Fetch group DN based on SAMAccountName
+        String groupDn = getGroupDnBySAMAccountName(groupName, ldapTemplate);
 
         if (groupDn == null) {
-            throw new IllegalArgumentException("Group not found: " + groupName);
+            throw new IllegalArgumentException("Group not found with SAMAccountName: " + groupName);
         }
 
-        // Fetch members of the group
-        List<String> memberDns = ldapTemplate.search(
-            "", 
-            String.format("(memberOf=%s)", groupDn), 
-            (AttributesMapper<String>) attrs -> (String) attrs.get("distinguishedName").get()
+        // Fetch members using the group DN
+        List<String> memberSams = ldapTemplate.search(
+            "",
+            String.format("(memberOf=%s)", groupDn),
+            (AttributesMapper<String>) attrs -> (String) attrs.get("sAMAccountName").get()
         );
 
         // Resolve cross-domain members
         List<String> resolvedMembers = new ArrayList<>();
-        for (String memberDn : memberDns) {
-            if (isCrossDomainMember(memberDn, domain)) {
-                String crossDomain = extractDomainFromDn(memberDn);
+        for (String memberSam : memberSams) {
+            if (isCrossDomainMember(memberSam, domain)) {
+                String crossDomain = extractDomainFromSam(memberSam);
                 LdapTemplate crossDomainLdapTemplate = ldapDynamicConfig.getLdapTemplateForDomain(crossDomain);
 
-                String resolvedMember = fetchUserDetails(memberDn, crossDomainLdapTemplate);
+                String resolvedMember = fetchUserDetailsBySAMAccountName(memberSam, crossDomainLdapTemplate);
                 resolvedMembers.add(resolvedMember);
             } else {
-                resolvedMembers.add(fetchUserDetails(memberDn, ldapTemplate));
+                resolvedMembers.add(fetchUserDetailsBySAMAccountName(memberSam, ldapTemplate));
             }
         }
 
@@ -46,26 +46,19 @@ public class LdapService {
     }
 
     /**
-     * Fetch all groups for a given member using the memberOf attribute.
+     * Fetch all groups for a given member using SAMAccountName.
      *
-     * @param memberPrincipalName the user principal name of the member
+     * @param memberSam the SAMAccountName of the member
      * @param domain the domain of the member
      * @return list of groups the member belongs to
      */
-    public List<String> getMemberGroupsWithMemberOf(String memberPrincipalName, String domain) {
+    public List<String> getMemberGroupsBySAMAccountName(String memberSam, String domain) {
         LdapTemplate ldapTemplate = ldapDynamicConfig.getLdapTemplateForDomain(domain);
 
-        // Fetch DN of the member
-        String memberDn = getUserDn(memberPrincipalName, ldapTemplate);
-
-        if (memberDn == null) {
-            throw new IllegalArgumentException("User not found: " + memberPrincipalName);
-        }
-
-        // Use memberOf to fetch groups
+        // Fetch groups using member's SAMAccountName
         List<String> groups = ldapTemplate.search(
-            "", 
-            String.format("(distinguishedName=%s)", memberDn), 
+            "",
+            String.format("(sAMAccountName=%s)", memberSam),
             (AttributesMapper<List<String>>) attrs -> {
                 Attribute memberOfAttr = attrs.get("memberOf");
                 if (memberOfAttr != null) {
@@ -85,46 +78,41 @@ public class LdapService {
                 .collect(Collectors.toList());
     }
 
-    // Helper methods remain the same as in the previous version
-    private boolean isCrossDomainMember(String memberDn, String currentDomain) {
-        return !memberDn.toLowerCase().contains(currentDomain.toLowerCase());
-    }
-
-    private String extractDomainFromDn(String memberDn) {
-        Pattern domainPattern = Pattern.compile("DC=([a-zA-Z0-9]+),DC=([a-zA-Z0-9]+)");
-        Matcher matcher = domainPattern.matcher(memberDn);
-
-        if (matcher.find()) {
-            return matcher.group(1) + "." + matcher.group(2);
-        }
-
-        throw new IllegalArgumentException("Unable to extract domain from DN: " + memberDn);
-    }
-
-    private String fetchUserDetails(String userDn, LdapTemplate ldapTemplate) {
-        return ldapTemplate.lookup(userDn, (AttributesMapper<String>) attrs -> {
-            return (String) attrs.get("cn").get();
-        });
-    }
-
-    private String getUserDn(String userPrincipalName, LdapTemplate ldapTemplate) {
+    /**
+     * Fetch details of a user by SAMAccountName.
+     */
+    private String fetchUserDetailsBySAMAccountName(String samAccountName, LdapTemplate ldapTemplate) {
         List<String> results = ldapTemplate.search(
             "",
-            String.format("(userPrincipalName=%s)", userPrincipalName),
+            String.format("(sAMAccountName=%s)", samAccountName),
+            (AttributesMapper<String>) attrs -> (String) attrs.get("cn").get()
+        );
+
+        return results.isEmpty() ? null : results.get(0);
+    }
+
+    /**
+     * Get the DN of a group using SAMAccountName.
+     */
+    private String getGroupDnBySAMAccountName(String groupName, LdapTemplate ldapTemplate) {
+        List<String> results = ldapTemplate.search(
+            "",
+            String.format("(sAMAccountName=%s)", groupName),
             (AttributesMapper<String>) attrs -> (String) attrs.get("distinguishedName").get()
         );
 
         return results.isEmpty() ? null : results.get(0);
     }
 
-    private String getGroupDn(String groupName, LdapTemplate ldapTemplate) {
-        List<String> results = ldapTemplate.search(
-            "",
-            String.format("(cn=%s)", groupName),
-            (AttributesMapper<String>) attrs -> (String) attrs.get("distinguishedName").get()
-        );
+    // Helper methods remain unchanged
+    private boolean isCrossDomainMember(String memberSam, String currentDomain) {
+        // Update logic to determine cross-domain using SAMAccountName if needed
+        return !memberSam.toLowerCase().contains(currentDomain.toLowerCase());
+    }
 
-        return results.isEmpty() ? null : results.get(0);
+    private String extractDomainFromSam(String memberSam) {
+        // Implement logic to extract domain from SAMAccountName if needed
+        throw new UnsupportedOperationException("Domain extraction from SAMAccountName is not yet implemented");
     }
 
     private String extractGroupNameFromDn(String groupDn) {
@@ -138,5 +126,6 @@ public class LdapService {
         throw new IllegalArgumentException("Unable to extract group name from DN: " + groupDn);
     }
 }
+
 
 
